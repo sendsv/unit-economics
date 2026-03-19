@@ -28,6 +28,11 @@ TERMS = {
     "Break-even": "Break-even point (Точка безубыточности) — Количество единиц товара/услуг, которое нужно продать, чтобы доходы полностью покрыли все расходы (выйти в ноль)."
 }
 
+def create_abbr(text, term_key, color='#2c3e50'):
+    """Функция для создания HTML-элемента с пунктирным подчеркиванием и всплывающей подсказкой."""
+    tooltip = TERMS.get(term_key, "")
+    return f'<span title="{tooltip}" style="border-bottom: 1px dashed {color}; cursor: help; color: {color};">{text}</span>'
+
 # ==========================================
 # ИНИЦИАЛИЗАЦИЯ ДАННЫХ ПО УМОЛЧАНИЮ
 # ==========================================
@@ -73,15 +78,9 @@ def render_dashboard(m):
             </div>
             <div style="flex: 1; min-width: 250px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
                 <h3 style="margin-top: 0; color: #34495e;" title="{TERMS['Revenue']}">💰 Финансы (база)</h3>
-                <p>Выручка (Revenue): <b>{fmt(m['revenue'])} ₽</b></p>
-                <p>Всего COGS: <b>{fmt(m['total_cogs'])} ₽</b></p>
-                <p>COGS на 1 шт.: <b>{fmt(m['cogs_per_unit'])} ₽</b></p>
-            </div>
-            <div style="flex: 1; min-width: 250px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <h3 style="margin-top: 0; color: #34495e;" title="{TERMS['Revenue']}">💰 Финансы (база)</h3>
-                <p>Выручка (Revenue): <b>{fmt(m['revenue'])} ₽</b></p>
-                <p>Всего COGS: <b>{fmt(m['total_cogs'])} ₽</b></p>
-                <p>COGS на 1 дер.: <b>{fmt(m['cogs_per_tree'])} ₽</b></p>
+                <p title="{TERMS['Revenue']}">Выручка (Revenue): <b>{fmt(m['revenue'])} ₽</b></p>
+                <p title="{TERMS['COGS']}">Всего COGS: <b>{fmt(m['total_cogs'])} ₽</b></p>
+                <p title="{TERMS['COGS']}">COGS на 1 шт.: <b>{fmt(m['cogs_per_unit'])} ₽</b></p>
             </div>
             <div style="flex: 1; min-width: 250px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
                 <h3 style="margin-top: 0; color: #34495e;" title="{TERMS['CAC']}">🎯 Эффективность</h3>
@@ -131,7 +130,7 @@ def render_segment():
             f_base, f_or, f_ctr, f_cr = 0, 0, 0, 0 # dummy values
 
     with col2:
-        st.markdown(f"#### 💰 Блок 2: Доходы", help=TERMS['Revenue'])
+        st.markdown(f"#### 💰 Блок 2: Доходы ({create_abbr('Revenue', 'Revenue')})", unsafe_allow_html=True)
         price = st.number_input("Цена 1 шт. ₽:", min_value=0.0, value=1500.0, key="price", help="Цена, по которой мы продаем 1 единицу клиенту")
         tpr = st.number_input("Единиц в чеке:", min_value=0.1, value=1.5, key="tpr", help="Среднее количество товаров/услуг, которое покупает 1 клиент за раз")
 
@@ -140,9 +139,9 @@ def render_segment():
     col3, col4 = st.columns(2)
     
     with col3:
-        st.markdown(f"#### 📉 Блок 3: Переменные расходы", help=TERMS['COGS'])
-        acq_percent = st.number_input("Эквайринг %:", min_value=0.0, value=2.5, key="acq")
-        tax_percent = st.number_input("Налоги %:", min_value=0.0, value=6.0, key="tax")
+        st.markdown(f"#### 📉 Блок 3: Переменные расходы ({create_abbr('COGS', 'COGS')})", unsafe_allow_html=True)
+        acq_percent = st.number_input("Эквайринг %:", min_value=0.0, value=2.5, key="acq", help="Комиссия платежной системы в процентах от выручки")
+        tax_percent = st.number_input("Налоги %:", min_value=0.0, value=6.0, key="tax", help="Налог с продаж в процентах")
             
         st.write("Дополнительные переменные расходы (на 1 шт.):")
         # Streamlit 1.23+ Data Editor for dynamic lists
@@ -156,8 +155,8 @@ def render_segment():
         st.session_state["cogs"] = cogs_df
 
     with col4:
-        st.markdown(f"#### 📢 Блок 4: Пост. расходы и Привлечение", help=TERMS['CAC'])
-        fixed_costs = st.number_input("Пост. расходы ₽:", min_value=0.0, value=50000.0, key="fixed")
+        st.markdown(f"#### 📢 Блок 4: Пост. расходы и Привлечение ({create_abbr('CAC', 'CAC')})", unsafe_allow_html=True)
+        fixed_costs = st.number_input("Пост. расходы ₽:", min_value=0.0, value=50000.0, key="fixed", help="Расходы, не зависящие от объема продаж")
         
         st.write("Каналы маркетинга и разовые расходы:")
         cac_df = st.data_editor(
