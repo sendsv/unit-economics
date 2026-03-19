@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 
 # ==========================================
 # КОНФИГУРАЦИЯ СТРАНИЦЫ
@@ -52,7 +53,7 @@ def init_session_state():
 init_session_state()
 
 # ==========================================
-# ФУНКЦИИ ФОРМАТИРОВАНИЯ И РАСЧЕТА
+# ФУНКЦИИ ФОРМАТИРОВАНИЯ И ЭКСПОРТА
 # ==========================================
 def fmt(num, is_int=False):
     if num == float('inf'):
@@ -60,6 +61,41 @@ def fmt(num, is_int=False):
     if is_int:
         return f"{int(num):,} ".replace(',', ' ')
     return f"{num:,.2f} ".replace(',', ' ')
+
+def export_to_excel(metrics, inputs_dict, cogs_df, cac_df):
+    """Генерирует Excel-файл в памяти."""
+    output = io.BytesIO()
+    
+    # Заменяем бесконечность на строку для Excel
+    safe_metrics = metrics.copy()
+    if safe_metrics['break_even'] == float('inf'):
+        safe_metrics['break_even'] = "Недостижимо"
+        
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Лист 1: Итоговые метрики
+        metrics_ru = {
+            'buyers': 'Покупателей (чел)', 'units_sold': 'Продано единиц (шт)', 'revenue': 'Выручка (Revenue), ₽',
+            'total_cogs': 'Общая себестоимость (COGS), ₽', 'cogs_per_unit': 'COGS на 1 шт., ₽',
+            'cac': 'Стоимость привлечения (CAC), ₽', 'gross_profit': 'Валовая прибыль (Gross Profit), ₽',
+            'contribution_margin': 'Маржинальная прибыль (Contribution Margin), ₽/чек',
+            'net_profit': 'Чистая прибыль (Net Profit), ₽', 'roi': 'Окупаемость (ROI), %',
+            'break_even': 'Точка безубыточности (шт)'
+        }
+        metrics_df = pd.DataFrame([
+            {"Метрика": metrics_ru.get(k, k), "Значение": v} 
+            for k, v in safe_metrics.items()
+        ])
+        metrics_df.to_excel(writer, sheet_name='Итоговые метрики', index=False)
+
+        # Лист 2: Вводные данные
+        inputs_df = pd.DataFrame(list(inputs_dict.items()), columns=['Параметр', 'Значение'])
+        inputs_df.to_excel(writer, sheet_name='Вводные данные', index=False)
+
+        # Лист 3 и 4: Таблицы расходов
+        cogs_df.to_excel(writer, sheet_name='Переменные расходы (COGS)', index=False)
+        cac_df.to_excel(writer, sheet_name='Пост. расходы и CAC', index=False)
+
+    return output.getvalue()
 
 def render_dashboard(m):
     roi_color = "#27ae60" if m['roi'] > 0 else "#c0392b"
@@ -125,9 +161,10 @@ def render_segment():
             f_or = st.number_input("Open Rate %:", min_value=0.0, max_value=100.0, value=30.0, key="or", help=TERMS['Open Rate'])
             f_ctr = st.number_input("CTR %:", min_value=0.0, max_value=100.0, value=15.0, key="ctr", help=TERMS['CTR'])
             f_cr = st.number_input("CR %:", min_value=0.0, max_value=100.0, value=5.0, key="cr", help=TERMS['CR'])
+            m_units = 0
         else:
             m_units = st.number_input("Продано (шт):", min_value=0, value=100, key="munits", help="Укажите точное количество проданных единиц")
-            f_base, f_or, f_ctr, f_cr = 0, 0, 0, 0 # dummy values
+            f_base, f_or, f_ctr, f_cr = 0, 0, 0, 0 
 
     with col2:
         st.markdown(f"#### 💰 Блок 2: Доходы ({create_abbr('Revenue', 'Revenue')})", unsafe_allow_html=True)
@@ -168,17 +205,32 @@ def render_segment():
         )
         st.session_state["cac"] = cac_df
 
+    # Собираем все введенные данные для выгрузки в Excel
+    inputs_dict = {
+        "Режим ввода": sales_mode,
+        "Размер базы": f_base if sales_mode == "Через воронку продаж" else "-",
+        "Open Rate %": f_or if sales_mode == "Через воронку продаж" else "-",
+        "CTR %": f_ctr if sales_mode == "Через воронку продаж" else "-",
+        "CR %": f_cr if sales_mode == "Через воронку продаж" else "-",
+        "Продано (ручной ввод)": m_units if sales_mode == "Ручной ввод" else "-",
+        "Цена 1 шт. ₽": price,
+        "Единиц в чеке": tpr,
+        "Эквайринг %": acq_percent,
+        "Налоги %": tax_percent,
+        "Постоянные расходы ₽": fixed_costs
+    }
+
     # ================= РАСЧЕТ МЕТРИК =================
     # Безопасное деление
-    tpr = max(tpr, 0.0001)
+    safe_tpr = max(tpr, 0.0001)
     
     # Объемы
     if sales_mode == "Через воронку продаж":
         buyers = f_base * (f_or / 100) * (f_ctr / 100) * (f_cr / 100)
-        units_sold = buyers * tpr
+        units_sold = buyers * safe_tpr
     else:
         units_sold = m_units
-        buyers = units_sold / tpr
+        buyers = units_sold / safe_tpr
         
     # Выручка
     revenue = units_sold * price
@@ -195,7 +247,7 @@ def render_segment():
     # Эффективность
     cac = marketing_total / buyers if buyers > 0 else 0.0
     gross_profit = revenue - total_cogs
-    contribution_margin = ((price - cogs_per_unit) * tpr) - cac
+    contribution_margin = ((price - cogs_per_unit) * safe_tpr) - cac
     net_profit = gross_profit - marketing_total - fixed_costs
     
     total_investments = total_cogs + marketing_total + fixed_costs
@@ -211,7 +263,26 @@ def render_segment():
         'net_profit': net_profit, 'roi': roi, 'break_even': break_even_units
     }
     
+    # Отрисовка дашборда
     render_dashboard(metrics)
+
+    # ================= БЛОК ЭКСПОРТА =================
+    st.divider()
+    st.markdown("### 💾 Сохранение результатов")
+    
+    col_export1, col_export2 = st.columns([1, 2])
+    with col_export1:
+        # Генерируем Excel
+        excel_data = export_to_excel(metrics, inputs_dict, cogs_df, cac_df)
+        st.download_button(
+            label="📥 Скачать расчеты в Excel",
+            data=excel_data,
+            file_name="unit_economics_export.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    with col_export2:
+        st.info("💡 **Как получить красивый PDF?** Нажмите `Ctrl + P` (или `Cmd + P` на Mac) в браузере и выберите пункт **«Сохранить как PDF»**. Это лучший способ экспорта, который сохранит все цвета и красивое форматирование дашборда!")
 
 # ==========================================
 # ТОЧКА ВХОДА СТРАНИЦЫ
