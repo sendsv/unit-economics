@@ -53,7 +53,7 @@ def init_session_state():
 init_session_state()
 
 # ==========================================
-# ФУНКЦИИ ФОРМАТИРОВАНИЯ И ЭКСПОРТА
+# ФУНКЦИИ ФОРМАТИРОВАНИЯ И ЭКСПОРТА (EXCEL С ФОРМУЛАМИ)
 # ==========================================
 def fmt(num, is_int=False):
     if num == float('inf'):
@@ -62,38 +62,162 @@ def fmt(num, is_int=False):
         return f"{int(num):,} ".replace(',', ' ')
     return f"{num:,.2f} ".replace(',', ' ')
 
-def export_to_excel(metrics, inputs_dict, cogs_df, cac_df):
-    """Генерирует Excel-файл в памяти."""
+def export_to_excel(inputs_dict, cogs_df, cac_df):
+    """Генерирует умный Excel-файл с графиками и формулами."""
     output = io.BytesIO()
     
-    # Заменяем бесконечность на строку для Excel
-    safe_metrics = metrics.copy()
-    if safe_metrics['break_even'] == float('inf'):
-        safe_metrics['break_even'] = "Недостижимо"
+    # Используем xlsxwriter как движок, чтобы писать формулы и графики
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        workbook = writer.book
+        worksheet = workbook.add_worksheet('Дашборд Юнит-Экономики')
+        worksheet.hide_gridlines(2)
+
+        # Форматы оформления
+        h1_fmt = workbook.add_format({'bold': True, 'font_size': 14, 'bg_color': '#2c3e50', 'font_color': 'white', 'valign': 'vcenter', 'align': 'center', 'border': 1})
+        h2_fmt = workbook.add_format({'bold': True, 'font_size': 12, 'bg_color': '#ecf0f1', 'border': 1})
+        bold_fmt = workbook.add_format({'bold': True, 'border': 1})
+        num_fmt = workbook.add_format({'num_format': '#,##0.00', 'border': 1})
+        int_fmt = workbook.add_format({'num_format': '#,##0', 'border': 1})
+        money_fmt = workbook.add_format({'num_format': '#,##0.00 "₽"', 'border': 1})
+        money_bold_fmt = workbook.add_format({'bold': True, 'num_format': '#,##0.00 "₽"', 'border': 1, 'bg_color': '#f9f9f9'})
+        pct_fmt = workbook.add_format({'num_format': '0.00%', 'border': 1})
+        pct_bold_fmt = workbook.add_format({'bold': True, 'num_format': '0.00%', 'border': 1, 'bg_color': '#f9f9f9'})
+
+        # Настройка ширины колонок
+        worksheet.set_column('A:A', 35)
+        worksheet.set_column('B:B', 20)
+        worksheet.set_column('C:C', 5) # Разделитель
+        worksheet.set_column('D:D', 40)
+        worksheet.set_column('E:E', 25)
+
+        # === ЛЕВАЯ КОЛОНКА: ВВОДНЫЕ ДАННЫЕ ===
+        worksheet.merge_range('A1:B1', 'ВВОДНЫЕ ДАННЫЕ (Можно менять)', h1_fmt)
         
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # Лист 1: Итоговые метрики
-        metrics_ru = {
-            'buyers': 'Покупателей (чел)', 'units_sold': 'Продано единиц (шт)', 'revenue': 'Выручка (Revenue), ₽',
-            'total_cogs': 'Общая себестоимость (COGS), ₽', 'cogs_per_unit': 'COGS на 1 шт., ₽',
-            'cac': 'Стоимость привлечения (CAC), ₽', 'gross_profit': 'Валовая прибыль (Gross Profit), ₽',
-            'contribution_margin': 'Маржинальная прибыль (Contribution Margin), ₽/чек',
-            'net_profit': 'Чистая прибыль (Net Profit), ₽', 'roi': 'Окупаемость (ROI), %',
-            'break_even': 'Точка безубыточности (шт)'
-        }
-        metrics_df = pd.DataFrame([
-            {"Метрика": metrics_ru.get(k, k), "Значение": v} 
-            for k, v in safe_metrics.items()
-        ])
-        metrics_df.to_excel(writer, sheet_name='Итоговые метрики', index=False)
+        # Инпуты
+        mode_val = 1 if inputs_dict["Режим ввода"] == "Через воронку продаж" else 2
+        
+        inputs_layout = [
+            ("Режим (1-Воронка, 2-Ручной)", mode_val, int_fmt),
+            ("Размер базы", inputs_dict["Размер базы"] if mode_val==1 else 0, int_fmt),
+            ("Open Rate %", inputs_dict["Open Rate %"] if mode_val==1 else 0, num_fmt),
+            ("CTR %", inputs_dict["CTR %"] if mode_val==1 else 0, num_fmt),
+            ("CR %", inputs_dict["CR %"] if mode_val==1 else 0, num_fmt),
+            ("Продано (ручной ввод), шт", inputs_dict["Продано (ручной ввод)"] if mode_val==2 else 0, int_fmt),
+            ("Цена 1 шт. ₽", inputs_dict["Цена 1 шт. ₽"], money_fmt),
+            ("Единиц в чеке", inputs_dict["Единиц в чеке"], num_fmt),
+            ("Эквайринг %", inputs_dict["Эквайринг %"], num_fmt),
+            ("Налоги %", inputs_dict["Налоги %"], num_fmt),
+            ("Постоянные расходы ₽", inputs_dict["Постоянные расходы ₽"], money_fmt),
+        ]
 
-        # Лист 2: Вводные данные
-        inputs_df = pd.DataFrame(list(inputs_dict.items()), columns=['Параметр', 'Значение'])
-        inputs_df.to_excel(writer, sheet_name='Вводные данные', index=False)
+        row = 1
+        for name, val, fmt_type in inputs_layout:
+            row += 1
+            worksheet.write(f'A{row}', name, h2_fmt)
+            worksheet.write(f'B{row}', val, fmt_type)
 
-        # Лист 3 и 4: Таблицы расходов
-        cogs_df.to_excel(writer, sheet_name='Переменные расходы (COGS)', index=False)
-        cac_df.to_excel(writer, sheet_name='Пост. расходы и CAC', index=False)
+        row += 2
+        worksheet.merge_range(f'A{row}:B{row}', 'ДОП. ПЕРЕМЕННЫЕ РАСХОДЫ (COGS)', h1_fmt)
+        row += 1
+        worksheet.write(f'A{row}', 'Название', h2_fmt)
+        worksheet.write(f'B{row}', 'Сумма, ₽', h2_fmt)
+        
+        cogs_start = row + 1
+        for idx, item in cogs_df.iterrows():
+            row += 1
+            worksheet.write(f'A{row}', item['Название'], bold_fmt)
+            worksheet.write(f'B{row}', item['Сумма, ₽'], money_fmt)
+        if cogs_df.empty:
+            row += 1
+            worksheet.write(f'A{row}', '-', bold_fmt)
+            worksheet.write(f'B{row}', 0, money_fmt)
+            
+        row += 1
+        cogs_sum_row = row
+        worksheet.write(f'A{row}', 'ИТОГО ДОП. COGS:', bold_fmt)
+        worksheet.write_formula(f'B{row}', f'=SUM(B{cogs_start}:B{row-1})', money_bold_fmt)
+
+        row += 2
+        worksheet.merge_range(f'A{row}:B{row}', 'МАРКЕТИНГ И РАЗОВЫЕ РАСХОДЫ (CAC)', h1_fmt)
+        row += 1
+        worksheet.write(f'A{row}', 'Название', h2_fmt)
+        worksheet.write(f'B{row}', 'Сумма, ₽', h2_fmt)
+        
+        cac_start = row + 1
+        for idx, item in cac_df.iterrows():
+            row += 1
+            worksheet.write(f'A{row}', item['Название'], bold_fmt)
+            worksheet.write(f'B{row}', item['Сумма, ₽'], money_fmt)
+        if cac_df.empty:
+            row += 1
+            worksheet.write(f'A{row}', '-', bold_fmt)
+            worksheet.write(f'B{row}', 0, money_fmt)
+
+        row += 1
+        cac_sum_row = row
+        worksheet.write(f'A{row}', 'ИТОГО МАРКЕТИНГ:', bold_fmt)
+        worksheet.write_formula(f'B{row}', f'=SUM(B{cac_start}:B{row-1})', money_bold_fmt)
+
+        # === ПРАВАЯ КОЛОНКА: РАСЧЕТЫ (ФОРМУЛЫ) ===
+        worksheet.merge_range('D1:E1', 'ИТОГОВЫЕ МЕТРИКИ (Авторасчет)', h1_fmt)
+        
+        metrics_layout = [
+            ("Покупателей (чел)", '=IF(B2=1, B3*(B4/100)*(B5/100)*(B6/100), B7/B9)', int_fmt),
+            ("Продано единиц (шт)", '=IF(B2=1, E2*B9, B7)', int_fmt),
+            ("Выручка (Revenue)", '=E3*B8', money_bold_fmt),
+            ("COGS на 1 шт.", f'=(B8*(B10/100)) + (B8*(B11/100)) + B{cogs_sum_row}', money_fmt),
+            ("Общая себестоимость (Total COGS)", '=E5*E3', money_bold_fmt),
+            ("Стоимость привлечения (Итоговый CAC)", f'=IF(E2>0, B{cac_sum_row}/E2, 0)', money_fmt),
+            ("Валовая прибыль (Gross Profit)", '=E4-E6', money_bold_fmt),
+            ("Маржинальная прибыль (С 1 чека)", f'=(B8-E5)*B9 - E7', money_bold_fmt),
+            ("Чистая прибыль (Net Profit)", f'=E8 - B{cac_sum_row} - B12', money_bold_fmt),
+            ("Окупаемость (ROI)", f'=IF((E6+B{cac_sum_row}+B12)>0, E10/(E6+B{cac_sum_row}+B12), 0)', pct_bold_fmt),
+            ("Точка безубыточности (Break-even), шт", f'=IF((B8-E5)>0, (B12+B{cac_sum_row})/(B8-E5), "Недостижимо")', int_fmt),
+        ]
+
+        r_metrics = 1
+        for name, formula, fmt_type in metrics_layout:
+            r_metrics += 1
+            worksheet.write(f'D{r_metrics}', name, h2_fmt)
+            worksheet.write_formula(f'E{r_metrics}', formula, fmt_type)
+
+        # === ДАННЫЕ ДЛЯ ГРАФИКА ТОЧКИ БЕЗУБЫТОЧНОСТИ (Скрытые колонки) ===
+        worksheet.set_column('AA:AC', None, None, {'hidden': 1})
+        worksheet.write('AA1', 'Объем')
+        worksheet.write('AB1', 'Выручка')
+        worksheet.write('AC1', 'Расходы')
+
+        # Формируем точки: 0, 0.5 BEP, BEP, 1.5 BEP, 2 BEP
+        worksheet.write('AA2', 0)
+        worksheet.write_formula('AA3', '=IFERROR(E12*0.5, 0)')
+        worksheet.write_formula('AA4', '=IFERROR(E12, 0)')
+        worksheet.write_formula('AA5', '=IFERROR(E12*1.5, 0)')
+        worksheet.write_formula('AA6', '=IFERROR(E12*2, 0)')
+
+        for r_chart in range(2, 7):
+            worksheet.write_formula(f'AB{r_chart}', f'=AA{r_chart}*B8')
+            worksheet.write_formula(f'AC{r_chart}', f'=B12+B{cac_sum_row} + AA{r_chart}*E5')
+
+        # === ПОСТРОЕНИЕ ГРАФИКА ===
+        chart = workbook.add_chart({'type': 'line'})
+        chart.add_series({
+            'name': 'Выручка',
+            'categories': '=Дашборд Юнит-Экономики!$AA$2:$AA$6',
+            'values': '=Дашборд Юнит-Экономики!$AB$2:$AB$6',
+            'line': {'color': '#27ae60', 'width': 2.5}
+        })
+        chart.add_series({
+            'name': 'Общие расходы',
+            'categories': '=Дашборд Юнит-Экономики!$AA$2:$AA$6',
+            'values': '=Дашборд Юнит-Экономики!$AC$2:$AC$6',
+            'line': {'color': '#c0392b', 'width': 2.5}
+        })
+        chart.set_title({'name': 'График Точки Безубыточности', 'name_font': {'size': 14, 'bold': True}})
+        chart.set_x_axis({'name': 'Объем продаж (шт)', 'major_gridlines': {'visible': True, 'line': {'color': '#E0E0E0'}}})
+        chart.set_y_axis({'name': 'Деньги (₽)', 'major_gridlines': {'visible': True, 'line': {'color': '#E0E0E0'}}})
+        chart.set_legend({'position': 'bottom'})
+
+        worksheet.insert_chart('G2', chart, {'x_scale': 1.6, 'y_scale': 1.4})
 
     return output.getvalue()
 
@@ -170,6 +294,12 @@ def render_segment():
         st.markdown(f"#### 💰 Блок 2: Доходы ({create_abbr('Revenue', 'Revenue')})", unsafe_allow_html=True)
         price = st.number_input("Цена 1 шт. ₽:", min_value=0.0, value=1500.0, key="price", help="Цена, по которой мы продаем 1 единицу клиенту")
         tpr = st.number_input("Единиц в чеке:", min_value=0.1, value=1.5, key="tpr", help="Среднее количество товаров/услуг, которое покупает 1 клиент за раз")
+        
+        # Выравнивание по высоте: добавляем пустые блоки в зависимости от режима ввода
+        if sales_mode == "Через воронку продаж":
+            st.markdown("<div style='min-height: 250px;'></div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='min-height: 20px;'></div>", unsafe_allow_html=True)
 
     st.divider()
     
@@ -208,11 +338,11 @@ def render_segment():
     # Собираем все введенные данные для выгрузки в Excel
     inputs_dict = {
         "Режим ввода": sales_mode,
-        "Размер базы": f_base if sales_mode == "Через воронку продаж" else "-",
-        "Open Rate %": f_or if sales_mode == "Через воронку продаж" else "-",
-        "CTR %": f_ctr if sales_mode == "Через воронку продаж" else "-",
-        "CR %": f_cr if sales_mode == "Через воронку продаж" else "-",
-        "Продано (ручной ввод)": m_units if sales_mode == "Ручной ввод" else "-",
+        "Размер базы": f_base if sales_mode == "Через воронку продаж" else 0,
+        "Open Rate %": f_or if sales_mode == "Через воронку продаж" else 0,
+        "CTR %": f_ctr if sales_mode == "Через воронку продаж" else 0,
+        "CR %": f_cr if sales_mode == "Через воронку продаж" else 0,
+        "Продано (ручной ввод)": m_units if sales_mode == "Ручной ввод" else 0,
         "Цена 1 шт. ₽": price,
         "Единиц в чеке": tpr,
         "Эквайринг %": acq_percent,
@@ -268,21 +398,21 @@ def render_segment():
 
     # ================= БЛОК ЭКСПОРТА =================
     st.divider()
-    st.markdown("### 💾 Сохранение результатов")
+    st.markdown("### 💾 Умный экспорт результатов")
     
     col_export1, col_export2 = st.columns([1, 2])
     with col_export1:
         # Генерируем Excel
-        excel_data = export_to_excel(metrics, inputs_dict, cogs_df, cac_df)
+        excel_data = export_to_excel(inputs_dict, cogs_df, cac_df)
         st.download_button(
-            label="📥 Скачать расчеты в Excel",
+            label="📥 Скачать интерактивный Excel (с формулами и графиком)",
             data=excel_data,
-            file_name="unit_economics_export.xlsx",
+            file_name="unit_economics_dashboard.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
     with col_export2:
-        st.info("💡 **Как получить красивый PDF?** Нажмите `Ctrl + P` (или `Cmd + P` на Mac) в браузере и выберите пункт **«Сохранить как PDF»**. Это лучший способ экспорта, который сохранит все цвета и красивое форматирование дашборда!")
+        st.info("💡 **Что внутри Excel?** Мы собрали все данные на один лист, прописали классические Excel-формулы для метрик и построили график точки безубыточности. Вы можете менять ячейки с вводными данными прямо в Excel, и все результаты моментально пересчитаются!")
 
 # ==========================================
 # ТОЧКА ВХОДА СТРАНИЦЫ
