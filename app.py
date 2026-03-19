@@ -12,6 +12,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Поднимаем заголовок выше и делаем интерфейс компактнее
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # ==========================================
 # СЛОВАРЬ ТЕРМИНОВ (для всплывающих подсказок)
 # ==========================================
@@ -29,10 +39,10 @@ TERMS = {
     "Break-even": "Break-even point (Точка безубыточности) — Количество единиц товара/услуг, которое нужно продать, чтобы доходы полностью покрыли все расходы (выйти в ноль)."
 }
 
-def create_abbr(text, term_key, color='#2c3e50'):
-    """Функция для создания HTML-элемента с пунктирным подчеркиванием и всплывающей подсказкой."""
+def create_abbr(text, term_key, color='inherit'):
+    """Функция для создания HTML-элемента с пунктирным подчеркиванием (цвет адаптируется под тему)."""
     tooltip = TERMS.get(term_key, "")
-    return f'<span title="{tooltip}" style="border-bottom: 1px dashed {color}; cursor: help; color: {color};">{text}</span>'
+    return f'<span title="{tooltip}" style="border-bottom: 1px dashed {color}; cursor: help; color: {color}; opacity: 0.9;">{text}</span>'
 
 # ==========================================
 # ИНИЦИАЛИЗАЦИЯ ДАННЫХ ПО УМОЛЧАНИЮ
@@ -222,47 +232,47 @@ def export_to_excel(inputs_dict, cogs_df, cac_df):
     return output.getvalue()
 
 def render_dashboard(m):
-    roi_color = "#27ae60" if m['roi'] > 0 else "#c0392b"
-    net_color = "#27ae60" if m['net_profit'] > 0 else "#c0392b"
+    roi_color = "#2ecc71" if m['roi'] > 0 else "#e74c3c"
+    net_color = "#2ecc71" if m['net_profit'] > 0 else "#e74c3c"
     
     html = f"""
-    <div style="background-color: #f4f6f9; padding: 20px; border-radius: 8px; color: #333; margin-top: 20px;">
-        <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 2px solid #bdc3c7; padding-bottom: 10px;">
+    <div style="background-color: var(--secondary-background-color); padding: 20px; border-radius: 8px; margin-top: 20px;">
+        <h2 style="margin-top: 0; color: var(--text-color); border-bottom: 2px solid rgba(128,128,128,0.2); padding-bottom: 10px;">
             Итоговые метрики
         </h2>
         <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
-            <div style="flex: 1; min-width: 250px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <h3 style="margin-top: 0; color: #34495e;" title="Объемы">📦 Объемы</h3>
-                <p>Покупателей: <b>{fmt(m['buyers'], True)} чел.</b></p>
-                <p>Продано единиц: <b>{fmt(m['units_sold'], True)} шт.</b></p>
+            <div style="flex: 1; min-width: 250px; background-color: var(--background-color); border: 1px solid rgba(128,128,128,0.2); padding: 15px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: var(--text-color); opacity: 0.9;" title="Объемы">📦 Объемы</h3>
+                <p style="color: var(--text-color);">Покупателей: <b>{fmt(m['buyers'], True)} чел.</b></p>
+                <p style="color: var(--text-color);">Продано единиц: <b>{fmt(m['units_sold'], True)} шт.</b></p>
             </div>
-            <div style="flex: 1; min-width: 250px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <h3 style="margin-top: 0; color: #34495e;" title="{TERMS['Revenue']}">💰 Финансы (база)</h3>
-                <p title="{TERMS['Revenue']}">Выручка (Revenue): <b>{fmt(m['revenue'])} ₽</b></p>
-                <p title="{TERMS['COGS']}">Всего COGS: <b>{fmt(m['total_cogs'])} ₽</b></p>
-                <p title="{TERMS['COGS']}">COGS на 1 шт.: <b>{fmt(m['cogs_per_unit'])} ₽</b></p>
+            <div style="flex: 1; min-width: 250px; background-color: var(--background-color); border: 1px solid rgba(128,128,128,0.2); padding: 15px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: var(--text-color); opacity: 0.9;" title="{TERMS['Revenue']}">💰 Финансы (база)</h3>
+                <p style="color: var(--text-color);" title="{TERMS['Revenue']}">Выручка: <b>{fmt(m['revenue'])} ₽</b></p>
+                <p style="color: var(--text-color);" title="{TERMS['COGS']}">Всего COGS: <b>{fmt(m['total_cogs'])} ₽</b></p>
+                <p style="color: var(--text-color);" title="{TERMS['COGS']}">COGS на 1 шт.: <b>{fmt(m['cogs_per_unit'])} ₽</b></p>
             </div>
-            <div style="flex: 1; min-width: 250px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <h3 style="margin-top: 0; color: #34495e;" title="{TERMS['CAC']}">🎯 Эффективность</h3>
-                <p title="{TERMS['CAC']}">Итоговый CAC: <b>{fmt(m['cac'])} ₽</b></p>
-                <p title="{TERMS['Gross Profit']}">Gross Profit: <b>{fmt(m['gross_profit'])} ₽</b></p>
-                <p title="{TERMS['Contribution Margin']}">Contr. Margin: <b>{fmt(m['contribution_margin'])} ₽ / чек</b></p>
+            <div style="flex: 1; min-width: 250px; background-color: var(--background-color); border: 1px solid rgba(128,128,128,0.2); padding: 15px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: var(--text-color); opacity: 0.9;" title="{TERMS['CAC']}">🎯 Эффективность</h3>
+                <p style="color: var(--text-color);" title="{TERMS['CAC']}">Итоговый CAC: <b>{fmt(m['cac'])} ₽</b></p>
+                <p style="color: var(--text-color);" title="{TERMS['Gross Profit']}">Gross Profit: <b>{fmt(m['gross_profit'])} ₽</b></p>
+                <p style="color: var(--text-color);" title="{TERMS['Contribution Margin']}">Contr. Margin: <b>{fmt(m['contribution_margin'])} ₽ / чек</b></p>
             </div>
         </div>
-        <div style="background: white; padding: 20px; border-radius: 8px; border-left: 5px solid {roi_color}; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h3 style="margin-top: 0; color: #2c3e50;">🏆 Главные показатели (Итог проекта)</h3>
+        <div style="background-color: var(--background-color); border: 1px solid rgba(128,128,128,0.2); padding: 20px; border-radius: 8px; border-left: 5px solid {roi_color};">
+            <h3 style="margin-top: 0; color: var(--text-color);">🏆 Главные показатели (Итог проекта)</h3>
             <div style="display: flex; flex-wrap: wrap; gap: 30px;">
                 <div title="{TERMS['ROI']}">
-                    <span style="font-size: 14px; color: #7f8c8d;">Окупаемость (ROI)</span><br>
+                    <span style="font-size: 14px; color: var(--text-color); opacity: 0.7;">Окупаемость (ROI)</span><br>
                     <span style="font-size: 28px; font-weight: bold; color: {roi_color};">{fmt(m['roi'])} %</span>
                 </div>
                 <div title="{TERMS['Net Profit']}">
-                    <span style="font-size: 14px; color: #7f8c8d;">Чистая прибыль (Net Profit)</span><br>
+                    <span style="font-size: 14px; color: var(--text-color); opacity: 0.7;">Чистая прибыль (Net Profit)</span><br>
                     <span style="font-size: 28px; font-weight: bold; color: {net_color};">{fmt(m['net_profit'])} ₽</span>
                 </div>
                 <div title="{TERMS['Break-even']}">
-                    <span style="font-size: 14px; color: #7f8c8d;">Точка безубыточности</span><br>
-                    <span style="font-size: 28px; font-weight: bold; color: #2980b9;">{fmt(m['break_even'], True)} шт.</span>
+                    <span style="font-size: 14px; color: var(--text-color); opacity: 0.7;">Точка безубыточности</span><br>
+                    <span style="font-size: 28px; font-weight: bold; color: #3498db;">{fmt(m['break_even'], True)} шт.</span>
                 </div>
             </div>
         </div>
@@ -277,63 +287,86 @@ def render_segment():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 📦 Блок 1: Объем продаж")
-        sales_mode = st.radio("Ввод продаж:", ["Через воронку продаж", "Ручной ввод"], key="mode")
-        
-        if sales_mode == "Через воронку продаж":
-            f_base = st.number_input("Размер базы:", min_value=0, value=10000, key="base", help="Общее количество контактов в базе рассылки/рекламы")
-            f_or = st.number_input("Open Rate %:", min_value=0.0, max_value=100.0, value=30.0, key="or", help=TERMS['Open Rate'])
-            f_ctr = st.number_input("CTR %:", min_value=0.0, max_value=100.0, value=15.0, key="ctr", help=TERMS['CTR'])
-            f_cr = st.number_input("CR %:", min_value=0.0, max_value=100.0, value=5.0, key="cr", help=TERMS['CR'])
-            m_units = 0
-        else:
-            m_units = st.number_input("Продано (шт):", min_value=0, value=100, key="munits", help="Укажите точное количество проданных единиц")
-            f_base, f_or, f_ctr, f_cr = 0, 0, 0, 0 
+        # Оформляем Блок 1 в красивую рамку
+        with st.container(border=True):
+            st.markdown("#### 📦 Блок 1: Объем продаж")
+            
+            # Радиокнопка выровнена по горизонтали для экономии места
+            sales_mode = st.radio("Ввод продаж:", ["Через воронку продаж", "Ручной ввод"], key="mode", horizontal=True)
+            
+            if sales_mode == "Через воронку продаж":
+                # Разбиваем инпуты на 2 мини-колонки, чтобы было узко и компактно
+                c11, c12 = st.columns(2)
+                with c11:
+                    f_base = st.number_input("Размер базы:", min_value=0, value=10000, key="base", help="Общее количество контактов в базе рассылки/рекламы")
+                    f_ctr = st.number_input("CTR %:", min_value=0.0, max_value=100.0, value=15.0, key="ctr", help=TERMS['CTR'])
+                with c12:
+                    f_or = st.number_input("Open Rate %:", min_value=0.0, max_value=100.0, value=30.0, key="or", help=TERMS['Open Rate'])
+                    f_cr = st.number_input("CR %:", min_value=0.0, max_value=100.0, value=5.0, key="cr", help=TERMS['CR'])
+                m_units = 0
+            else:
+                m_units = st.number_input("Продано (шт):", min_value=0, value=100, key="munits", help="Укажите точное количество проданных единиц")
+                f_base, f_or, f_ctr, f_cr = 0, 0, 0, 0 
 
     with col2:
-        st.markdown(f"#### 💰 Блок 2: Доходы ({create_abbr('Revenue', 'Revenue')})", unsafe_allow_html=True)
-        price = st.number_input("Цена 1 шт. ₽:", min_value=0.0, value=1500.0, key="price", help="Цена, по которой мы продаем 1 единицу клиенту")
-        tpr = st.number_input("Единиц в чеке:", min_value=0.1, value=1.5, key="tpr", help="Среднее количество товаров/услуг, которое покупает 1 клиент за раз")
-        
-        # Выравнивание по высоте: добавляем пустые блоки в зависимости от режима ввода
-        if sales_mode == "Через воронку продаж":
-            st.markdown("<div style='min-height: 250px;'></div>", unsafe_allow_html=True)
-        else:
-            st.markdown("<div style='min-height: 20px;'></div>", unsafe_allow_html=True)
+        # Оформляем Блок 2 в красивую рамку
+        with st.container(border=True):
+            st.markdown(f"#### 💰 Блок 2: Доходы ({create_abbr('Revenue', 'Revenue')})", unsafe_allow_html=True)
+            
+            # Идеальное выравнивание с "Блок 1". Добавляем невидимый отступ равный высоте Радиокнопки
+            st.markdown("<div style='height: 70px;'></div>", unsafe_allow_html=True)
+            
+            c21, c22 = st.columns(2)
+            with c21:
+                price = st.number_input("Цена 1 шт. ₽:", min_value=0.0, value=1500.0, key="price", help="Цена, по которой мы продаем 1 единицу клиенту")
+            with c22:
+                tpr = st.number_input("Единиц в чеке:", min_value=0.1, value=1.5, key="tpr", help="Среднее количество товаров/услуг, которое покупает 1 клиент за раз")
+            
+            # Выравниваем нижнюю границу блока с "Блок 1", если выбрана Воронка
+            if sales_mode == "Через воронку продаж":
+                st.markdown("<div style='height: 70px;'></div>", unsafe_allow_html=True)
 
-    st.divider()
-    
     col3, col4 = st.columns(2)
     
     with col3:
-        st.markdown(f"#### 📉 Блок 3: Переменные расходы ({create_abbr('COGS', 'COGS')})", unsafe_allow_html=True)
-        acq_percent = st.number_input("Эквайринг %:", min_value=0.0, value=2.5, key="acq", help="Комиссия платежной системы в процентах от выручки")
-        tax_percent = st.number_input("Налоги %:", min_value=0.0, value=6.0, key="tax", help="Налог с продаж в процентах")
+        # Оформляем Блок 3 в рамку
+        with st.container(border=True):
+            st.markdown(f"#### 📉 Блок 3: Переменные расходы ({create_abbr('COGS', 'COGS')})", unsafe_allow_html=True)
             
-        st.write("Дополнительные переменные расходы (на 1 шт.):")
-        # Streamlit 1.23+ Data Editor for dynamic lists
-        cogs_df = st.data_editor(
-            st.session_state["cogs"],
-            num_rows="dynamic",
-            use_container_width=True,
-            key="cogs_editor",
-            hide_index=True
-        )
-        st.session_state["cogs"] = cogs_df
+            c31, c32 = st.columns(2)
+            with c31:
+                acq_percent = st.number_input("Эквайринг %:", min_value=0.0, value=2.5, key="acq", help="Комиссия платежной системы в процентах от выручки")
+            with c32:
+                tax_percent = st.number_input("Налоги %:", min_value=0.0, value=6.0, key="tax", help="Налог с продаж в процентах")
+                
+            st.write("Дополнительные переменные расходы (на 1 шт.):")
+            cogs_df = st.data_editor(
+                st.session_state["cogs"],
+                num_rows="dynamic",
+                use_container_width=True,
+                key="cogs_editor",
+                hide_index=True
+            )
+            st.session_state["cogs"] = cogs_df
 
     with col4:
-        st.markdown(f"#### 📢 Блок 4: Пост. расходы и Привлечение ({create_abbr('CAC', 'CAC')})", unsafe_allow_html=True)
-        fixed_costs = st.number_input("Пост. расходы ₽:", min_value=0.0, value=50000.0, key="fixed", help="Расходы, не зависящие от объема продаж")
-        
-        st.write("Каналы маркетинга и разовые расходы:")
-        cac_df = st.data_editor(
-            st.session_state["cac"],
-            num_rows="dynamic",
-            use_container_width=True,
-            key="cac_editor",
-            hide_index=True
-        )
-        st.session_state["cac"] = cac_df
+        # Оформляем Блок 4 в рамку
+        with st.container(border=True):
+            st.markdown(f"#### 📢 Блок 4: Пост. расходы и Привлечение ({create_abbr('CAC', 'CAC')})", unsafe_allow_html=True)
+            
+            c41, c42 = st.columns(2)
+            with c41:
+                fixed_costs = st.number_input("Пост. расходы ₽:", min_value=0.0, value=50000.0, key="fixed", help="Расходы, не зависящие от объема продаж")
+            
+            st.write("Каналы маркетинга и разовые расходы:")
+            cac_df = st.data_editor(
+                st.session_state["cac"],
+                num_rows="dynamic",
+                use_container_width=True,
+                key="cac_editor",
+                hide_index=True
+            )
+            st.session_state["cac"] = cac_df
 
     # Собираем все введенные данные для выгрузки в Excel
     inputs_dict = {
@@ -397,7 +430,6 @@ def render_segment():
     render_dashboard(metrics)
 
     # ================= БЛОК ЭКСПОРТА =================
-    st.divider()
     st.markdown("### 💾 Умный экспорт результатов")
     
     col_export1, col_export2 = st.columns([1, 2])
@@ -405,7 +437,7 @@ def render_segment():
         # Генерируем Excel
         excel_data = export_to_excel(inputs_dict, cogs_df, cac_df)
         st.download_button(
-            label="📥 Скачать интерактивный Excel (с формулами и графиком)",
+            label="📥 Скачать интерактивный Excel",
             data=excel_data,
             file_name="unit_economics_dashboard.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
